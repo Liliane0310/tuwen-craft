@@ -25,14 +25,21 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/MuYaoSuiXinShouXieTi.woff2') format('woff2');
+  src: url('../fonts/MuYaoSuiXinShouXieTi.ttf') format('truetype');
 }
 @font-face {
   font-family: 'XiaWuZhenKai';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/XiaWuZhenKaiGB.woff2') format('woff2');
+  src: url('../fonts/XiaWuZhenKaiGB.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'LXGW WenKai';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/LXGWWenKai-Regular.ttf') format('truetype');
 }
 
 /* Noto Sans SC / Noto Serif SC fallback — 使用系统字体栈替代 */

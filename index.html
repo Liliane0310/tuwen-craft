@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>图文工坊 · tuwen</title>
+
+<!-- Web fonts -->
+<link rel="stylesheet" href="./assets/css/fonts.css?v=20260823">
+
+<script src="./assets/js/html2canvas.min.js"></script>
+
+<link rel="stylesheet" href="./assets/css/app.css?v=20260823">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand" aria-label="tuwen 图文工坊">
+    <span class="brand-logo"><img src="./assets/tuwen-logo-small.png" alt="tuwen"></span>
+    <span class="brand-divider" aria-hidden="true"></span>
+    <span class="brand-name">图文工坊</span>
+  </div>
+  <nav class="nav-links" aria-label="工作区">
+    <a href="#" id="tab-cover" class="nav-tab active" data-tab="cover" aria-current="page">封面编辑</a>
+    <a href="#" id="tab-body" class="nav-tab" data-tab="body" aria-current="false">正文编辑</a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="annotation-wrap" id="annotationWrap">
+    <button class="btn btn-ghost" id="annotationBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="8" ry="5"/><path d="M17 16l3 3"/></svg>加批注
+    </button>
+    <div class="annotation-menu" id="annotationMenu">
+      <div class="menu-title">选择批注形状</div>
+      <div class="annotation-types">
+        <button class="annotation-type" data-annotation-type="circle" data-annotation-for="notebook">圆圈</button>
+        <button class="annotation-type" data-annotation-type="arrow" data-annotation-for="notebook">箭头</button>
+        <button class="annotation-type" data-annotation-type="underline" data-annotation-for="swiss">蓝色下划线</button>
+        <button class="annotation-type" data-annotation-type="wave" data-annotation-for="hamster">黄色波浪线</button>
+      </div>
+      <div class="annotation-colors">
+        <button class="annotation-color" data-annotation-color="#5270FF" style="background:#5270FF" aria-label="蓝色"></button>
+        <button class="annotation-color" data-annotation-color="#F68E22" style="background:#F68E22" aria-label="橙黄色"></button>
+        <button class="annotation-color active" data-annotation-color="#F2C44A" style="background:#F2C44A" aria-label="黄色"></button>
+        <button class="annotation-color" data-annotation-color="#A9181D" style="background:#A9181D" aria-label="红色"></button>
+        <button class="annotation-color" data-annotation-color="#17191C" style="background:#17191C" aria-label="黑色"></button>
+        <span class="annotation-help">拖动 · 拉伸</span>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-ghost" id="toggleHints">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg><span id="toggleHintsText">点击画布编辑</span>
+  </button>
+  <button class="btn btn-ghost" id="newBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>新建
+  </button>
+  <button class="btn btn-primary" id="exportBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>导出 PNG
+  </button>
+</header>
+
+<div class="workspace" data-mode="cover">
+  <aside class="templates" id="coverSidebar">
+    <div class="head">模板</div>
+    <div class="sub" data-cover-only>选择封面风格</div>
+    <div class="sub body-only" style="display:none">卡片样式</div>
+    <div class="scroll" id="tplList"></div>
+  </aside>
+  <main class="stage" id="stage">
+    <div class="canvas-wrap" id="canvasWrap"><div id="canvas"></div></div>
+    <div class="zoom-tag" id="zoomTag"></div>
+  </main>
+  <main class="stage" id="bodyStage">
+    <div class="body-preview-head">
+      <div>
+        <h2>图片预览</h2>
+        <p id="bodyPreviewSummary">从上往下预览所有正文图片</p>
+      </div>
+    </div>
+    <div id="bodyPreview"></div>
+  </main>
+  <aside class="inspector" id="coverInspector">
+    <div class="head">编辑</div>
+    <div class="tpl-name" id="inspTitle">—</div>
+    <div class="scroll" id="inspFields"></div>
+  </aside>
+  <aside class="inspector body-only" id="bodyInspector" style="display:none">
+    <div class="head">编辑栏</div>
+    <div class="tpl-name">输入 Markdown，右侧自动生成正文图片</div>
+    <div class="scroll" id="bodyInspFields"></div>
+  </aside>
+</div>
+
+<script src="./assets/js/app.js?v=20260823"></script>
+<script src="./assets/js/body-editor.js?v=20260823"></script>
+<script src="./assets/js/history.js?v=20260823"></script>
+
+<!-- 正文图片裁剪 Modal -->
+<div id="bodyCropModal" class="hidden" role="dialog" aria-modal="true" aria-labelledby="bodyCropTitle">
+  <div class="crop-card">
+    <div class="crop-head">
+      <div>
+        <h3 id="bodyCropTitle">裁剪图片</h3>
+        <p id="bodyCropSubtitle">拖动裁剪框选择要保留的区域，不裁剪则按原图放入</p>
+      </div>
+      <button id="bodyCropCloseBtn" class="crop-close" type="button" title="关闭" aria-label="关闭裁剪">×</button>
+    </div>
+    <div class="crop-layout">
+      <div class="crop-stage">
+        <canvas id="bodyCropCanvas" width="720" height="500"></canvas>
+      </div>
+      <aside class="crop-controls">
+        <div>
+          <div class="crop-section-title">比例</div>
+          <div class="ratio-grid">
+            <button type="button" data-ratio="free" class="active">自由</button>
+            <button type="button" data-ratio="original">原图</button>
+            <button type="button" data-ratio="1">1:1</button>
+            <button type="button" data-ratio="1.333333">4:3</button>
+            <button type="button" data-ratio="1.777778">16:9</button>
+            <button type="button" data-ratio="0.75">3:4</button>
+            <button type="button" data-ratio="0.5625">9:16</button>
+          </div>
+        </div>
+        <div class="crop-actions">
+          <button id="bodyCropResetBtn" class="crop-reset" type="button">恢复原图</button>
+          <button id="bodyCropApplyBtn" class="crop-apply" type="button">应用裁剪</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- 新手引导 -->
+<div class="guide-overlay" id="guideOverlay"></div>
+<div class="guide-highlight" id="guideHighlight" style="display:none"></div>
+<div class="guide-card" id="guideCard" style="display:none">
+  <div class="step-tag" id="guideStepTag">第 1 步 / 共 5 步</div>
+  <h3 id="guideTitle">选择模板</h3>
+  <p id="guideDesc">在左侧模板列表中，点击任意风格模板即可切换封面样式。</p>
+  <div class="guide-actions">
+    <div class="guide-dots" id="guideDots"></div>
+    <button class="guide-skip" id="guideSkip">跳过</button>
+    <button class="guide-next" id="guideNext">下一步</button>
+  </div>
+</div>
+<script>
+(function(){
+  var GUIDE_KEY='tuwen_guide_completed_v1';
+  if(localStorage.getItem(GUIDE_KEY))return;
+  var steps=[
+    {target:'#coverSidebar',title:'选择模板',desc:'在左侧模板列表中，点击任意风格模板即可切换封面样式。'},
+    {target:'#canvas',title:'实时预览',desc:'中间区域是封面预览，点击右上角"点击画布编辑"后，可直接在预览图上点击文字进行编辑。'},
+    {target:'#coverInspector',title:'调整内容与样式',desc:'在右侧编辑栏填写文字、选择颜色、上传图片，所有修改实时同步到预览区。'},
+    {target:'#exportBtn',title:'导出图片',desc:'编辑完成后，点击这里一键导出高清 PNG 图片。'},
+    {target:'#tab-body',title:'正文编辑',desc:'切换到"正文编辑"标签，可以把 Markdown 正文自动分页为多张图文卡片。'}
+  ];
+  var idx=0;
+  var overlay=document.getElementById('guideOverlay');
+  var highlight=document.getElementById('guideHighlight');
+  var card=document.getElementById('guideCard');
+  var stepTag=document.getElementById('guideStepTag');
+  var titleEl=document.getElementById('guideTitle');
+  var descEl=document.getElementById('guideDesc');
+  var dotsEl=document.getElementById('guideDots');
+  var skipBtn=document.getElementById('guideSkip');
+  var nextBtn=document.getElementById('guideNext');
+
+  function buildDots(){
+    dotsEl.innerHTML='';
+    steps.forEach(function(_,i){
+      var d=document.createElement('div');
+      d.className='guide-dot'+(i===idx?' active':'');
+      dotsEl.appendChild(d);
+    });
+  }
+  function positionCard(target){
+    if(!target){card.style.display='none';return;}
+    var rect=target.getBoundingClientRect();
+    highlight.style.display='block';
+    highlight.style.left=(rect.left-6)+'px';
+    highlight.style.top=(rect.top-6)+'px';
+    highlight.style.width=(rect.width+12)+'px';
+    highlight.style.height=(rect.height+12)+'px';
+    card.style.display='block';
+    var cardW=340,cardH=card.offsetHeight||180;
+    var left=rect.right+16;
+    var top=rect.top;
+    if(left+cardW>window.innerWidth-16)left=rect.left-cardW-16;
+    if(left<16)left=Math.max(16,(window.innerWidth-cardW)/2);
+    if(top+cardH>window.innerHeight-16)top=window.innerHeight-cardH-16;
+    if(top<16)top=16;
+    card.style.left=left+'px';
+    card.style.top=top+'px';
+    requestAnimationFrame(function(){card.classList.add('active');});
+  }
+  function showStep(){
+    var step=steps[idx];
+    var target=document.querySelector(step.target);
+    stepTag.textContent='第 '+(idx+1)+' 步 / 共 '+steps.length+' 步';
+    titleEl.textContent=step.title;
+    descEl.textContent=step.desc;
+    nextBtn.textContent=idx===steps.length-1?'开始使用':'下一步';
+    buildDots();
+    card.classList.remove('active');
+    if(target){
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(function(){positionCard(target);},300);
+    }else{
+      highlight.style.display='none';
+      card.style.display='block';
+      card.style.left='50%';
+      card.style.top='50%';
+      card.style.transform='translate(-50%,-50%)';
+      requestAnimationFrame(function(){card.classList.add('active');});
+    }
+  }
+  function next(){if(idx<steps.length-1){idx++;showStep();}else{close();}}
+  function close(){
+    overlay.classList.remove('active');
+    highlight.style.display='none';
+    card.style.display='none';
+    card.style.transform='';
+    localStorage.setItem(GUIDE_KEY,'1');
+  }
+  nextBtn.addEventListener('click',next);
+  skipBtn.addEventListener('click',close);
+  overlay.addEventListener('click',close);
+  window.addEventListener('resize',function(){if(card.style.display!=='none'){var step=steps[idx];var t=document.querySelector(step.target);if(t)positionCard(t);}});
+
+  setTimeout(function(){
+    overlay.classList.add('active');
+    showStep();
+  },600);
+})();
+</script>
+
+</body>
+</html>

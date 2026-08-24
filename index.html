@@ -10,7 +10,7 @@
 
 <script src="./assets/js/html2canvas.min.js"></script>
 
-<link rel="stylesheet" href="./assets/css/app.css?v=20260823">
+<link rel="stylesheet" href="./assets/css/app.css?v=20260824">
 </head>
 <body>
 
@@ -75,6 +75,11 @@
         <h2>图片预览</h2>
         <p id="bodyPreviewSummary">从上往下预览所有正文图片</p>
       </div>
+      <div class="body-preview-actions">
+        <button class="btn btn-ghost body-export-selected-btn" id="bodyExportSelectedBtn" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>单张导出
+        </button>
+      </div>
     </div>
     <div id="bodyPreview"></div>
   </main>
@@ -91,7 +96,7 @@
 </div>
 
 <script src="./assets/js/app.js?v=20260823"></script>
-<script src="./assets/js/body-editor.js?v=20260823"></script>
+<script src="./assets/js/body-editor.js?v=20260824"></script>
 <script src="./assets/js/history.js?v=20260823"></script>
 
 <!-- 正文图片裁剪 Modal -->

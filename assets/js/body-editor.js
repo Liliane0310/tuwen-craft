@@ -1133,6 +1133,8 @@
       this.state = storedState.state;
       this.restoredFromStorage = storedState.restored;
       this.canvases = [];
+      this.selectedExportIndex = null;
+      this.exporting = false;
       this.imageCache = new Map();
       this.textHistory = { stack: [], index: -1, max: 100, timer: null, restoring: false };
       this.lastSelection = { start: 0, end: 0 };
@@ -1151,7 +1153,9 @@
       this.container = document.getElementById('bodyInspFields');
       this.preview = document.getElementById('bodyPreview');
       this.previewSummary = document.getElementById('bodyPreviewSummary');
+      this.singleExportBtn = document.getElementById('bodyExportSelectedBtn');
       this.stage = document.getElementById('bodyStage');
+      this.singleExportBtn?.addEventListener('click', () => this.exportSelected());
       this.buildInspector();
       if (this.restoredFromStorage) this.setToolStatus('已恢复上次自动保存的正文');
       this.resetTextHistory();
@@ -1270,21 +1274,32 @@
         page.settings = settings;
       });
       this.canvases = pages.map((page, index) => renderPage(page, index, pages.length));
+      if (!Number.isInteger(this.selectedExportIndex) || this.selectedExportIndex < 0 || this.selectedExportIndex >= this.canvases.length) {
+        this.selectedExportIndex = null;
+      }
       this.preview.innerHTML = '';
       if (!this.canvases.length) {
         if (this.previewSummary) this.previewSummary.textContent = '暂无可预览的正文图片';
         this.preview.innerHTML = '<div style="padding:48px;color:var(--color-slate-gray);text-align:center">暂无内容</div>';
+        this.updateExportSelectionUI();
         return;
-      }
-      if (this.previewSummary) {
-        this.previewSummary.textContent = `共 ${this.canvases.length} 张 · 按顺序从上往下预览`;
       }
       this.canvases.forEach((cvs, index) => {
         const pageNo = index + 1;
         const frame = document.createElement('div');
         frame.className = 'body-page-frame';
         frame.dataset.pageNo = String(pageNo);
+        frame.dataset.exportIndex = String(index);
         frame.appendChild(cvs);
+        const selectBtn = document.createElement('button');
+        selectBtn.type = 'button';
+        selectBtn.className = 'body-page-select-btn';
+        selectBtn.dataset.exportIndex = String(index);
+        selectBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          this.selectExportPage(index);
+        });
+        frame.appendChild(selectBtn);
         const bgBtn = document.createElement('button');
         bgBtn.type = 'button';
         bgBtn.className = 'body-page-bg-btn';
@@ -1293,8 +1308,10 @@
         if (hasBg) bgBtn.classList.add('has-bg');
         bgBtn.addEventListener('click', (e) => { e.stopPropagation(); this.openPageBackgroundPanel(pageNo); });
         frame.appendChild(bgBtn);
+        frame.addEventListener('click', () => this.selectExportPage(index));
         this.preview.appendChild(frame);
       });
+      this.updateExportSelectionUI();
       if (this.activeBgPanelPageNo && this.activeBgPanelPageNo <= this.canvases.length) {
         const pageNo = this.activeBgPanelPageNo;
         this.activeBgPanelPageNo = null;
@@ -2072,40 +2089,124 @@
       this.render();
     }
 
-    async exportAll() {
+    selectExportPage(index) {
+      if (!Number.isInteger(index) || index < 0 || index >= this.canvases.length) return;
+      this.selectedExportIndex = index;
+      this.updateExportSelectionUI();
+    }
+
+    updateExportSelectionUI() {
+      const selected = this.selectedExportIndex;
+      this.preview?.querySelectorAll('.body-page-frame').forEach((frame) => {
+        const index = Number(frame.dataset.exportIndex);
+        const isSelected = index === selected;
+        frame.classList.toggle('is-export-selected', isSelected);
+        const button = frame.querySelector('.body-page-select-btn');
+        if (button) {
+          button.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
+          button.textContent = isSelected ? `已选第 ${index + 1} 张` : `选择第 ${index + 1} 张`;
+        }
+      });
+      if (this.singleExportBtn) {
+        this.singleExportBtn.disabled = this.exporting || !Number.isInteger(selected);
+        this.singleExportBtn.setAttribute('aria-label', Number.isInteger(selected) ? `单张导出第 ${selected + 1} 张` : '请先选择一张图片');
+      }
+      if (this.previewSummary) {
+        this.previewSummary.textContent = !this.canvases.length
+          ? '暂无可预览的正文图片'
+          : Number.isInteger(selected)
+          ? `共 ${this.canvases.length} 张 · 已选择第 ${selected + 1} 张`
+          : `共 ${this.canvases.length} 张 · 点击图片选择单张导出`;
+      }
+    }
+
+    setExporting(exporting) {
+      this.exporting = exporting;
+      const batchBtn = document.getElementById('exportBtn');
+      if (batchBtn && document.body.classList.contains('mode-body')) batchBtn.disabled = exporting;
+      this.updateExportSelectionUI();
+    }
+
+    async prepareExport() {
       // 导出前确保字体已加载并据此重渲染，避免导出 fallback 字体版本
       if (document.fonts && document.fonts.ready) {
         try { await document.fonts.ready; } catch (_) { /* ignore */ }
         await this._render();
       }
-      if (!this.canvases.length) return;
-      // 通过 JSBridge 保存到相册，浏览器环境降级为下载
-      const stamp = Date.now();
-      for (let index = 0; index < this.canvases.length; index += 1) {
-        const cvs = this.canvases[index];
-        const dataUrl = cvs.toDataURL('image/png');
-        if (window.xhs && window.xhs.miniTool && window.xhs.miniTool.saveImageToPhotosAlbum) {
-          try {
-            const { filePath } = await window.xhs.miniTool.writeTempFile({ data: dataUrl });
-            await window.xhs.miniTool.saveImageToPhotosAlbum({ filePath });
-          } catch (err) {
-            alert(`第 ${index + 1} 张保存失败: ${(err && err.errMsg) || (err && err.message) || '未知错误'}`);
-          }
-        } else {
-          /* 浏览器降级 */
-          const a = document.createElement('a');
-          a.download = `正文_${index + 1}_${stamp}.png`;
-          a.href = dataUrl;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        }
-        if (index < this.canvases.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
-        }
+      return this.canvases.length > 0;
+    }
+
+    async saveCanvas(index, stamp = Date.now()) {
+      const cvs = this.canvases[index];
+      if (!cvs) return false;
+      const dataUrl = cvs.toDataURL('image/png');
+      if (window.xhs?.miniTool?.saveImageToPhotosAlbum) {
+        const { filePath } = await window.xhs.miniTool.writeTempFile({ data: dataUrl });
+        await window.xhs.miniTool.saveImageToPhotosAlbum({ filePath });
+      } else {
+        const a = document.createElement('a');
+        a.download = `正文_${index + 1}_${stamp}.png`;
+        a.href = dataUrl;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
       }
-      if (window.xhs && window.xhs.miniTool) {
-        alert(`已保存 ${this.canvases.length} 张图片到相册`);
+      return true;
+    }
+
+    async exportSelected() {
+      if (this.exporting || !Number.isInteger(this.selectedExportIndex)) {
+        if (!this.exporting) this.setToolStatus('请先在预览区选择一张图片');
+        return;
+      }
+      this.setExporting(true);
+      try {
+        if (!await this.prepareExport()) return;
+        const index = this.selectedExportIndex;
+        if (!Number.isInteger(index) || !await this.saveCanvas(index)) {
+          this.setToolStatus('所选图片已不存在，请重新选择', 'error');
+          return;
+        }
+        if (window.xhs?.miniTool) alert(`已保存第 ${index + 1} 张图片到相册`);
+        this.setToolStatus(`已导出第 ${index + 1} 张图片`);
+      } catch (err) {
+        this.setToolStatus(`单张导出失败: ${(err && (err.errMsg || err.message)) || err}`, 'error');
+      } finally {
+        this.setExporting(false);
+      }
+    }
+
+    async exportAll() {
+      if (this.exporting) return;
+      this.setExporting(true);
+      try {
+        if (!await this.prepareExport()) return;
+        const stamp = Date.now();
+        let savedCount = 0;
+        const failedPages = [];
+        for (let index = 0; index < this.canvases.length; index += 1) {
+          try {
+            if (await this.saveCanvas(index, stamp)) savedCount += 1;
+          } catch (err) {
+            failedPages.push(index + 1);
+            if (window.xhs?.miniTool) {
+              alert(`第 ${index + 1} 张保存失败: ${(err && (err.errMsg || err.message)) || '未知错误'}`);
+            }
+          }
+          if (index < this.canvases.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 300));
+          }
+        }
+        if (window.xhs?.miniTool) alert(`已保存 ${savedCount} 张图片到相册`);
+        if (failedPages.length) {
+          this.setToolStatus(`已导出 ${savedCount} 张；第 ${failedPages.join('、')} 张失败`, 'error');
+        } else {
+          this.setToolStatus(`已批量导出 ${savedCount} 张图片`);
+        }
+      } catch (err) {
+        this.setToolStatus(`批量导出失败: ${(err && (err.errMsg || err.message)) || err}`, 'error');
+      } finally {
+        this.setExporting(false);
       }
     }
 

@@ -640,6 +640,9 @@ body.mode-body #bodyInspector{display:flex !important}
 }
 .body-preview-head h2{font-family:var(--font-signifier);font-size:22px;font-weight:400;letter-spacing:-.23px}
 .body-preview-head p{margin-top:3px;color:var(--color-slate-gray);font-size:13px}
+.body-preview-actions{display:flex;align-items:center;gap:8px}
+.body-export-selected-btn{padding:8px 14px;font-size:13px;background:var(--color-paper-white)}
+.body-export-selected-btn:disabled{opacity:.38;cursor:not-allowed;transform:none}
 #bodyPreview{
   display:flex;
   flex:0 0 auto;
@@ -649,7 +652,8 @@ body.mode-body #bodyInspector{display:flex !important}
   width:100%;
   padding:32px 24px 48px;
 }
-.body-page-frame{width:min(100%,432px);flex:0 0 auto;aspect-ratio:864/1152;background:#fff;box-shadow:var(--shadow-artifact);border-radius:var(--radius-elevatedcards);overflow:hidden}
+.body-page-frame{width:min(100%,432px);flex:0 0 auto;aspect-ratio:864/1152;background:#fff;box-shadow:var(--shadow-artifact);border-radius:var(--radius-elevatedcards);overflow:hidden;cursor:pointer;transition:outline-color .15s,transform .15s}
+.body-page-frame.is-export-selected{outline:3px solid var(--color-ink-black);outline-offset:5px}
 .body-page-frame canvas{display:block;width:100%;height:100%}
 
 /* 正文卡片：设背景按钮 + 背景浮层 */
@@ -658,6 +662,9 @@ body.mode-body #bodyInspector{display:flex !important}
 .body-page-frame:hover .body-page-bg-btn,.body-page-bg-btn:focus-visible{opacity:1}
 .body-page-bg-btn:hover{background:rgba(23,25,28,0.9)}
 .body-page-bg-btn.has-bg{background:rgba(23,25,28,0.55);opacity:1}
+.body-page-select-btn{position:absolute;top:8px;left:8px;z-index:3;height:28px;padding:0 11px;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.9);color:var(--color-ink-black);font:500 12px var(--font-sohne);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.12);backdrop-filter:blur(4px)}
+.body-page-select-btn:hover{background:#fff;border-color:var(--color-ink-black)}
+.body-page-select-btn[aria-pressed="true"]{background:var(--color-ink-black);color:#fff;border-color:var(--color-ink-black)}
 .body-bg-panel{position:absolute;top:42px;right:8px;z-index:4;width:240px;background:var(--color-paper-white);border:1px solid var(--color-mist-gray);border-radius:14px;box-shadow:var(--shadow-artifact);padding:14px;display:flex;flex-direction:column;gap:12px;font-family:var(--font-sohne)}
 .body-bg-panel-title{font:600 13px var(--font-sohne);color:var(--color-ink-black)}
 .body-bg-panel-thumb{width:100%;height:90px;border-radius:8px;overflow:hidden;background:#f3f4f6;display:flex;align-items:center;justify-content:center}

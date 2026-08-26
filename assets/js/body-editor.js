@@ -121,6 +121,14 @@
     return result;
   }
 
+  function collectInlineImageIds(content) {
+    const ids = new Set();
+    const imageRefRegex = /\[\[image:([\w-]+)(?:\|\d+%?)?\]\]/g;
+    let match;
+    while ((match = imageRefRegex.exec(String(content || ''))) !== null) ids.add(match[1]);
+    return ids;
+  }
+
   function normalizeStoredBodyState(value) {
     const defaults = defaultBodyState();
     if (!value || typeof value !== 'object') return defaults;
@@ -351,10 +359,10 @@
           index = table.endIndex;
           continue;
         }
-        const imageMatch = trimmed.match(/^\[\[image:([\w-]+)\]\]$/);
+        const imageMatch = trimmed.match(/^\[\[image:([\w-]+)(?:\|(\d+)%?)?\]\]$/);
         if (imageMatch) {
           flushParagraph();
-          blocks.push({ type: 'image', id: imageMatch[1], sourceStart: lineOffsets[index], sourceEnd: lineOffsets[index] + line.length });
+          blocks.push({ type: 'image', id: imageMatch[1], scale: imageMatch[2] ? clamp(Number(imageMatch[2]), 10, 100) / 100 : 1, sourceStart: lineOffsets[index], sourceEnd: lineOffsets[index] + line.length });
           continue;
         }
         const heading = trimmed.match(/^(#{1,6})\s+(.+)$/);
@@ -672,10 +680,16 @@
         let drawW = maxW;
         let drawH = drawW / aspect;
         if (drawH > maxH) { drawH = maxH; drawW = drawH * aspect; }
+        const scale = block.scale || 1;
+        if (scale < 1) {
+          drawW *= scale;
+          drawH *= scale;
+        }
         const topMargin = hasContent && previousBlockType !== 'spacer' ? 16 : 0;
         ensureSpace(drawH, topMargin);
         page.items.push({
           type: 'image',
+          imageId: block.id,
           image: img,
           sourceRect,
           x: page.bounds.left + (contentWidth - drawW) / 2,
@@ -1124,6 +1138,13 @@
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !modal.classList.contains('hidden')) getEditor()?.closeCropper();
     });
+    const sizeSlider = document.getElementById('bodyCropSizeSlider');
+    const sizeValue = document.getElementById('bodyCropSizeValue');
+    if (sizeSlider && sizeValue) {
+      sizeSlider.addEventListener('input', () => {
+        sizeValue.textContent = `${sizeSlider.value}%`;
+      });
+    }
   }
 
   // ===== 正文编辑器类 =====
@@ -1183,10 +1204,7 @@
       const content = this.textarea ? this.textarea.value : this.state.content;
       const referencedImages = {};
       if (includeImages) {
-        const referencedIds = new Set();
-        const imageRefRegex = /\[\[image:([\w-]+)\]\]/g;
-        let m;
-        while ((m = imageRefRegex.exec(content)) !== null) referencedIds.add(m[1]);
+        const referencedIds = collectInlineImageIds(content);
         Object.values(this.state.pageBackgrounds || {}).forEach((cfg) => {
           if (cfg?.imageId) referencedIds.add(cfg.imageId);
         });
@@ -1290,6 +1308,22 @@
         frame.className = 'body-page-frame';
         frame.dataset.pageNo = String(pageNo);
         frame.dataset.exportIndex = String(index);
+        const inlineImages = pages[index].items.filter((item) => item.type === 'image' && item.imageId);
+        if (inlineImages.length) {
+          cvs.title = '点击正文图片可调整裁剪和显示大小';
+          cvs.addEventListener('click', (event) => {
+            const bounds = cvs.getBoundingClientRect();
+            if (!bounds.width || !bounds.height) return;
+            const x = ((event.clientX - bounds.left) / bounds.width) * CANVAS_WIDTH;
+            const y = ((event.clientY - bounds.top) / bounds.height) * CANVAS_HEIGHT;
+            const target = inlineImages.find((item) => (
+              x >= item.x && x <= item.x + item.width && y >= item.y && y <= item.y + item.height
+            ));
+            if (!target) return;
+            event.stopPropagation();
+            this.openCropper(target.imageId);
+          });
+        }
         frame.appendChild(cvs);
         const selectBtn = document.createElement('button');
         selectBtn.type = 'button';
@@ -1318,13 +1352,8 @@
         this.openPageBackgroundPanel(pageNo);
       }
       // 清理未使用的图片:检查 state.images 里哪些 ID 既不在正文里也不在页背景里
-      const usedIds = new Set();
       const content = this.textarea ? this.textarea.value : this.state.content;
-      const imageRefs = content.match(/\[\[image:([^\]]+)\]\]/g) || [];
-      imageRefs.forEach(ref => {
-        const m = /\[\[image:([^\]]+)\]\]/.exec(ref);
-        if (m) usedIds.add(m[1]);
-      });
+      const usedIds = collectInlineImageIds(content);
       Object.values(this.state.pageBackgrounds || {}).forEach(bg => {
         if (bg?.imageId) usedIds.add(bg.imageId);
       });
@@ -1362,6 +1391,7 @@
         this.rememberSelection();
         if (event.key.startsWith('Arrow') || event.key === 'Shift') this.applyActiveBrushToSelection();
       });
+      this.textarea.addEventListener('paste', (event) => this.handlePaste(event));
       textField.appendChild(this.textarea);
       this.container.appendChild(textField);
 
@@ -1833,6 +1863,26 @@
       }, 0);
     }
 
+    getImageScaleInContent(imageId) {
+      const regex = new RegExp(`\\[\\[image:${imageId}(?:\\|(\\d+)%?)?\\]\\]`);
+      const content = this.textarea ? this.textarea.value : this.state.content;
+      const match = content.match(regex);
+      if (match && match[1]) return clamp(Number(match[1]), 10, 100) / 100;
+      return 1;
+    }
+
+    updateImageScaleInContent(imageId, scale) {
+      const ta = this.textarea;
+      const content = ta ? ta.value : this.state.content;
+      const regex = new RegExp(`\\[\\[image:${imageId}(?:\\|\\d+%?)?\\]\\]`);
+      const replacement = scale >= 1
+        ? `[[image:${imageId}]]`
+        : `[[image:${imageId}|${Math.round(scale * 100)}%]]`;
+      const newContent = content.replace(regex, replacement);
+      if (ta) ta.value = newContent;
+      this.state.content = newContent;
+    }
+
     findNext() {
       const needle = this.findInput?.value || '';
       if (!needle) {
@@ -1904,43 +1954,98 @@
     }
 
     openImagePicker() {
+      const insertionRange = this.getImageInsertionRange();
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = 'image/*';
-      input.addEventListener('change', () => {
+      input.hidden = true;
+      input.addEventListener('change', async () => {
         const file = input.files?.[0];
-        if (!file) return;
-        readFileAsDataURL(file).then((src) => {
-          const id = `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-          this.state.images[id] = { src, name: file.name, crop: null };
-          this.insertImageTagAtCursor(`[[image:${id}]]`);
-          this.openCropper(id);
-        }).catch((err) => {
-          this.setToolStatus(`图片读取失败: ${err.message || '文件过大或格式不支持'}`, 'error');
-        });
-      });
+        if (file) await this.processImageFile(file, insertionRange);
+        input.remove();
+      }, { once: true });
+      input.addEventListener('cancel', () => input.remove(), { once: true });
+      document.body.appendChild(input);
       input.click();
     }
 
-    insertImageTagAtCursor(tag) {
+    getImageInsertionRange() {
       const ta = this.textarea;
-      const start = ta.selectionStart;
-      const end = ta.selectionEnd;
+      const current = document.activeElement === ta
+        ? { start: ta.selectionStart, end: ta.selectionEnd }
+        : this.lastSelection;
+      return {
+        start: clamp(Number(current?.start) || 0, 0, ta.value.length),
+        end: clamp(Number(current?.end) || 0, 0, ta.value.length),
+      };
+    }
+
+    async processImageFile(file, insertionRange = this.getImageInsertionRange()) {
+      if (!file || (file.type && !file.type.startsWith('image/'))) {
+        this.setToolStatus('请选择有效的图片文件');
+        return false;
+      }
+      let src;
+      try {
+        src = await readFileAsDataURL(file);
+      } catch (err) {
+        this.setToolStatus(`图片读取失败: ${err.message || '文件过大或格式不支持'}`);
+        return false;
+      }
+
+      const id = `img_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+      this.state.images[id] = { src, name: file.name || '剪贴板图片', crop: null };
+      if (!this.insertImageTagAtCursor(`[[image:${id}]]`, insertionRange)) {
+        delete this.state.images[id];
+        return false;
+      }
+      this.setToolStatus('图片已插入，可在弹窗中调整裁剪和显示大小');
+      await this.openCropper(id);
+      return true;
+    }
+
+    insertImageTagAtCursor(tag, insertionRange = this.getImageInsertionRange()) {
+      const ta = this.textarea;
+      if (!ta || !/^\[\[image:[\w-]+\]\]$/.test(tag)) return false;
+      const start = clamp(Number(insertionRange?.start) || 0, 0, ta.value.length);
+      const end = clamp(Number(insertionRange?.end) || 0, start, ta.value.length);
       const before = ta.value.slice(0, start);
       const after = ta.value.slice(end);
-      const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
-      const suffix = after && !after.startsWith('\n') ? '\n' : '';
-      const insertion = `${prefix}${tag}${suffix}`;
-      ta.setRangeText(insertion, start, end, 'end');
+      const prefix = !before ? '' : before.endsWith('\n\n') ? '' : before.endsWith('\n') ? '\n' : '\n\n';
+      const suffix = !after ? '' : after.startsWith('\n\n') ? '' : after.startsWith('\n') ? '\n' : '\n\n';
+
+      this.commitTextHistory();
+      ta.setRangeText(`${prefix}${tag}${suffix}`, start, end, 'end');
+      ta.focus();
       this.state.content = ta.value;
+      this.rememberSelection();
+      this.commitTextHistory();
       this.render();
+      return true;
+    }
+
+    handlePaste(event) {
+      const clipboardData = event.clipboardData || (event.originalEvent && event.originalEvent.clipboardData);
+      if (!clipboardData) return;
+      const insertionRange = this.getImageInsertionRange();
+      let file = Array.from(clipboardData.files || []).find((item) => item.type.startsWith('image/')) || null;
+      if (!file) {
+        const imageItem = Array.from(clipboardData.items || []).find((item) => item.type.startsWith('image/'));
+        file = imageItem?.getAsFile() || null;
+      }
+      if (!file) return;
+      event.preventDefault();
+      this.processImageFile(file, insertionRange);
     }
 
     async openCropper(id) {
       const entry = this.state.images[id];
       if (!entry?.src) return;
       const image = await loadImage(entry.src).catch(() => null);
-      if (!image) return;
+      if (!image) {
+        this.setToolStatus('图片加载失败，可能是图片数据已损坏');
+        return;
+      }
       cropper.editor = this;
       cropper.targetId = id;
       cropper.image = image;
@@ -1948,11 +2053,23 @@
       cropper.drag = null;
       cropper.rect = clampCropRect(entry.crop, image);
       setActiveRatioButton('free');
+      const sizeSlider = document.getElementById('bodyCropSizeSlider');
+      const sizeValue = document.getElementById('bodyCropSizeValue');
+      const sizeSection = document.getElementById('bodyCropSizeSection');
+      const isInlineImage = collectInlineImageIds(this.textarea?.value || this.state.content).has(id);
+      if (sizeSection) sizeSection.hidden = !isInlineImage;
+      if (sizeSlider && sizeValue) {
+        const currentScale = this.getImageScaleInContent(id);
+        sizeSlider.value = Math.round(currentScale * 100);
+        sizeValue.textContent = `${Math.round(currentScale * 100)}%`;
+      }
       const modal = document.getElementById('bodyCropModal');
       const title = document.getElementById('bodyCropTitle');
       const subtitle = document.getElementById('bodyCropSubtitle');
-      if (title) title.textContent = `裁剪 ${entry.name || id}`;
-      if (subtitle) subtitle.textContent = '拖动裁剪框选择要保留的区域，不裁剪则按原图放入';
+      if (title) title.textContent = `${isInlineImage ? '调整' : '裁剪'} ${entry.name || id}`;
+      if (subtitle) subtitle.textContent = isInlineImage
+        ? '拖动裁剪框选择保留区域，并设置图片在正文中的显示大小'
+        : '拖动裁剪框选择要保留的区域，不裁剪则按原图放入';
       if (modal) modal.classList.remove('hidden');
       drawCropper();
     }
@@ -1978,8 +2095,16 @@
             width: Math.round(cropper.rect.width),
             height: Math.round(cropper.rect.height),
           };
+      this.commitTextHistory();
+      const sizeSlider = document.getElementById('bodyCropSizeSlider');
+      if (sizeSlider) {
+        const scale = clamp(Number(sizeSlider.value), 10, 100) / 100;
+        this.updateImageScaleInContent(cropper.targetId, scale);
+      }
+      this.commitTextHistory();
       this.closeCropper();
       this.render();
+      this.setToolStatus('图片裁剪和显示大小已更新');
     }
 
     resetCropperTarget() {
@@ -1987,6 +2112,13 @@
       const entry = this.state.images[cropper.targetId];
       if (entry) entry.crop = null;
       if (cropper.image) cropper.rect = fullCropRect(cropper.image);
+      const sizeSlider = document.getElementById('bodyCropSizeSlider');
+      const sizeValue = document.getElementById('bodyCropSizeValue');
+      if (sizeSlider) sizeSlider.value = 100;
+      if (sizeValue) sizeValue.textContent = '100%';
+      this.commitTextHistory();
+      this.updateImageScaleInContent(cropper.targetId, 1);
+      this.commitTextHistory();
       drawCropper();
       this.render();
     }

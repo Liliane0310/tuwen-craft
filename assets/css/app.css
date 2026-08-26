@@ -700,6 +700,10 @@ body.mode-body #bodyInspector{display:flex !important}
 #bodyCropModal .ratio-grid button.active{background:var(--color-ink-black);color:#fff;border-color:var(--color-ink-black)}
 #bodyCropModal .crop-actions{margin-top:auto;display:flex;flex-direction:column;gap:10px}
 #bodyCropModal .crop-actions button{height:40px;border-radius:10px;font:600 14px var(--font-sohne);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+#bodyCropModal .crop-size-control{display:flex;align-items:center;gap:12px}
+#bodyCropModal .crop-size-control input[type="range"]{flex:1;-webkit-appearance:none;height:6px;border-radius:3px;background:var(--color-mist-gray);outline:none}
+#bodyCropModal .crop-size-control input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--color-ink-black);cursor:pointer}
+#bodyCropModal .crop-size-control span{font:500 13px var(--font-sohne);color:var(--color-slate-gray);min-width:40px;text-align:right}
 #bodyCropModal .crop-reset{border:1px solid #e4e4e6;background:#fff;color:var(--color-ink-black)}
 #bodyCropModal .crop-reset:hover{border-color:var(--color-ink-black)}
 #bodyCropModal .crop-apply{border:none;background:var(--color-ink-black);color:#fff}

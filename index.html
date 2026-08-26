@@ -10,7 +10,7 @@
 
 <script src="./assets/js/html2canvas.min.js"></script>
 
-<link rel="stylesheet" href="./assets/css/app.css?v=20260824">
+<link rel="stylesheet" href="./assets/css/app.css?v=20260826">
 </head>
 <body>
 
@@ -96,7 +96,7 @@
 </div>
 
 <script src="./assets/js/app.js?v=20260823"></script>
-<script src="./assets/js/body-editor.js?v=20260824"></script>
+<script src="./assets/js/body-editor.js?v=20260826"></script>
 <script src="./assets/js/history.js?v=20260823"></script>
 
 <!-- 正文图片裁剪 Modal -->
@@ -126,9 +126,16 @@
             <button type="button" data-ratio="0.5625">9:16</button>
           </div>
         </div>
+        <div id="bodyCropSizeSection">
+          <div class="crop-section-title">显示大小</div>
+          <div class="crop-size-control">
+            <input type="range" id="bodyCropSizeSlider" min="10" max="100" value="100">
+            <span id="bodyCropSizeValue">100%</span>
+          </div>
+        </div>
         <div class="crop-actions">
           <button id="bodyCropResetBtn" class="crop-reset" type="button">恢复原图</button>
-          <button id="bodyCropApplyBtn" class="crop-apply" type="button">应用裁剪</button>
+          <button id="bodyCropApplyBtn" class="crop-apply" type="button">应用设置</button>
         </div>
       </aside>
     </div>

@@ -1,0 +1,8 @@
+node_modules/
+*.zip
+.workbuddy/
+test-*.png
+test-*.cjs
+fix_*.js
+kan64.txt
+shot.cjs

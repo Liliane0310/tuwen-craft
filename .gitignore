@@ -1,0 +1,33 @@
+# 依赖
+node_modules/
+
+# 用户导出的封面和正文
+封面_*.png
+正文_*.png
+
+# 编辑器临时文件
+*.bak
+*.bak.*
+*.tmp
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 测试临时文件
+test-*.cjs
+test-*.png
+
+# WorkBuddy
+.workbuddy/
+
+# Skill
+.skill/

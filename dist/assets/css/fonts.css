@@ -1,0 +1,46 @@
+/* 本地字体定义 — 替代 Google Fonts CDN */
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/PlayfairDisplay-Italic-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/PlayfairDisplay-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Playfair Display';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../fonts/PlayfairDisplay-Black.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'MuYao SuiXinShouXieTi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/MuYaoSuiXinShouXieTi.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'XiaWuZhenKai';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/XiaWuZhenKaiGB.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'LXGW WenKai';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/LXGWWenKai-Regular.ttf') format('truetype');
+}
+
+/* Noto Sans SC / Noto Serif SC fallback — 使用系统字体栈替代 */
+/* Ma Shan Zheng / ZCOOL KuaiLe fallback — 使用系统手写字体替代 */

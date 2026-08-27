@@ -696,6 +696,36 @@ body.mode-body #bodyInspector{display:flex !important}
 .body-bg-panel-actions button.danger:hover{background:#fef2f2}
 .body-bg-panel-actions button.ghost{color:var(--color-slate-gray)}
 
+/* 正文预览图片拖拽缩放手柄 */
+.body-page-frame{position:relative}
+.body-img-resize-handle{
+  position:absolute;
+  width:14px;height:14px;
+  background:var(--color-ink-black);
+  border:2px solid #fff;
+  border-radius:50%;
+  cursor:nwse-resize;
+  box-shadow:0 1px 4px rgba(0,0,0,.3);
+  opacity:0;
+  transition:opacity .15s;
+  z-index:6;
+  transform:translate(50%,-50%);
+}
+.body-page-frame:hover .body-img-resize-handle{opacity:1}
+.body-img-resize-handle:hover{opacity:1;transform:translate(50%,-50%) scale(1.2)}
+.body-img-resize-tag{
+  position:absolute;
+  z-index:7;
+  font:500 11px var(--font-sohne);
+  color:#fff;
+  background:rgba(23,25,28,0.82);
+  padding:3px 8px;
+  border-radius:6px;
+  pointer-events:none;
+  white-space:nowrap;
+  backdrop-filter:blur(4px);
+}
+
 /* 正文图片裁剪 Modal */
 #bodyCropModal{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(11,16,32,0.55);backdrop-filter:blur(2px)}
 #bodyCropModal.hidden{display:none}

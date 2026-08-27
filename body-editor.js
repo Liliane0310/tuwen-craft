@@ -683,6 +683,8 @@
         if (drawH > maxH) { drawH = maxH; drawW = drawH * aspect; }
         // 应用缩放比例
         const scale = block.scale || 1;
+        const fullW = drawW;
+        const fullH = drawH;
         if (scale < 1) {
           drawW = drawW * scale;
           drawH = drawH * scale;
@@ -698,6 +700,9 @@
           y,
           width: drawW,
           height: drawH,
+          fullWidth: fullW,
+          fullHeight: fullH,
+          scale: scale,
           radius: 13,
         });
         y += drawH + 12;
@@ -1313,8 +1318,9 @@
         frame.dataset.exportIndex = String(index);
         const inlineImages = pages[index].items.filter((item) => item.type === 'image' && item.imageId);
         if (inlineImages.length) {
-          cvs.title = '点击正文图片可调整裁剪和显示大小';
+          cvs.title = '点击图片可裁剪；拖动右下角圆点可直接缩放';
           cvs.addEventListener('click', (event) => {
+            if (cvs.dataset.resizing === '1') { delete cvs.dataset.resizing; return; }
             const bounds = cvs.getBoundingClientRect();
             if (!bounds.width || !bounds.height) return;
             const x = ((event.clientX - bounds.left) / bounds.width) * CANVAS_WIDTH;
@@ -1328,6 +1334,33 @@
           });
         }
         frame.appendChild(cvs);
+        // 为每张内嵌图片添加拖拽缩放手柄
+        inlineImages.forEach((imgItem) => {
+          const handle = document.createElement('div');
+          handle.className = 'body-img-resize-handle';
+          // 计算手柄在 frame 中的位置（canvas 撑满 frame 宽度，按比例换算）
+          const scaleX = cvs.clientWidth / CANVAS_WIDTH || 1;
+          const scaleY = cvs.clientHeight / CANVAS_HEIGHT || 1;
+          const rightPx = (imgItem.x + imgItem.width) * scaleX;
+          const bottomPx = (imgItem.y + imgItem.height) * scaleY;
+          handle.style.left = rightPx + 'px';
+          handle.style.top = bottomPx + 'px';
+          handle.title = '拖动调整图片大小';
+          // 缩放百分比标签
+          const tag = document.createElement('div');
+          tag.className = 'body-img-resize-tag';
+          tag.textContent = `${Math.round((imgItem.width / (imgItem.fullWidth || imgItem.width)) * 100)}%`;
+          tag.style.left = (rightPx - 30) + 'px';
+          tag.style.top = (bottomPx + 8) + 'px';
+          tag.style.display = 'none';
+          handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this._startInlineResize(e, { imageId: imgItem.imageId, frame, cvs, tag, imgItem });
+          });
+          frame.appendChild(handle);
+          frame.appendChild(tag);
+        });
         const selectBtn = document.createElement('button');
         selectBtn.type = 'button';
         selectBtn.className = 'body-page-select-btn';
@@ -2134,6 +2167,49 @@
       this.commitTextHistory();
       drawCropper();
       this.render();
+    }
+
+    _startInlineResize(e, ctx) {
+      const { imageId, cvs, tag, imgItem } = ctx;
+      const bounds = cvs.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      const scaleX = bounds.width / CANVAS_WIDTH;
+      const fullWidth = imgItem.fullWidth || imgItem.width;
+      const startScale = imgItem.scale || (imgItem.width / fullWidth);
+      const startX = e.clientX;
+      const startScaleVal = startScale;
+      cvs.dataset.resizing = '1';
+      tag.style.display = 'block';
+      tag.textContent = `${Math.round(startScale * 100)}%`;
+
+      const move = (ev) => {
+        const dx = ev.clientX - startX;
+        // 以图片宽度变化映射到缩放比例：拖动一个 fullWidth 的距离 = 100% 变化
+        const deltaScale = dx / (fullWidth * scaleX);
+        let newScale = clamp(startScaleVal + deltaScale, 0.1, 1.0);
+        tag.textContent = `${Math.round(newScale * 100)}%`;
+        // 实时更新正文 Markdown 中的缩放标记（防抖渲染）
+        this.updateImageScaleInContent(imageId, newScale);
+        this._scheduleResizeRender();
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        tag.style.display = 'none';
+        this.commitTextHistory();
+        this._resizeRenderTimer = null;
+        this.render();
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    }
+
+    _scheduleResizeRender() {
+      if (this._resizeRenderTimer) clearTimeout(this._resizeRenderTimer);
+      this._resizeRenderTimer = setTimeout(() => {
+        this._render();
+        this.saveStateDebounced();
+      }, 100);
     }
 
     openPageBackgroundPanel(pageNo) {

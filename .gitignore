@@ -31,3 +31,9 @@ test-*.png
 
 # Skill
 .skill/
+
+# 其他
+*.zip
+fix_*.js
+kan64.txt
+shot.cjs

@@ -5,18 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>图文工坊 · tuwen</title>
 
-<!-- Web fonts -->
+<!-- Web fonts：本地字体优先（assets/css/fonts.css），CDN 兜底 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@600;700;900&family=Ma+Shan+Zheng&family=ZCOOL+KuaiLe&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/css/fonts.css">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <style>
-@font-face{font-family:'MuYao SuiXinShouXieTi';src:url('fonts/MuYaoSuiXinShouXieTi.ttf') format('truetype');font-display:swap;}
-@font-face{font-family:'XiaWuZhenKai';src:url('fonts/XiaWuZhenKaiGB.ttf') format('truetype');font-display:swap;}
-@font-face{font-family:'HuWenMingChaoTi';src:url('fonts/汇文明朝体.otf') format('opentype');font-display:swap;}
-
 :root{
   /* Colors */
   --color-ink-black: #17191c;
@@ -379,6 +376,11 @@ body{
 }
 .field textarea{min-height:72px;line-height:1.5}
 .field input:focus,.field textarea:focus{outline:none;border-color:var(--color-ink-black)}
+.cover-format-toolbar{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 10px}
+.cover-format-button{height:34px;padding:0 10px;border:1px solid #e4e4e6;border-radius:10px;background:#fff;color:var(--color-ink-black);font:600 12px var(--font-sohne);cursor:pointer}
+.cover-format-button:hover{border-color:var(--color-ink-black)}
+.cover-format-button.highlight{background:linear-gradient(transparent 42%,#FDEBD3 42% 86%,transparent 86%)}
+.cover-format-help{margin-top:9px;color:var(--color-slate-gray);font-size:12px;line-height:1.55}
 .field .row{display:flex;gap:10px;align-items:center}
 .typography-panel>.hint{margin-top:-2px;margin-bottom:13px}
 .typography-control{
@@ -920,6 +922,7 @@ const COVER_FONT_STACKS={
   'zh-lxgw':'"LXGW WenKai","Kaiti SC",KaiTi,serif',
   'zh-muyao':'"MuYao SuiXinShouXieTi","Ma Shan Zheng",cursive',
   'zh-xwkai':'"XiaWuZhenKai","Noto Sans SC",sans-serif',
+  'zh-huiming':'"HuWenMingChaoTi","Noto Serif SC","Source Han Serif SC",Songti,serif',
   'en-system':'-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif',
   'en-serif':'Georgia,"Times New Roman",Times,serif',
   'en-playfair':'"Playfair Display","Noto Serif SC",Georgia,serif',
@@ -936,6 +939,7 @@ const COVER_FONT_OPTIONS=[
   {value:'zh-lxgw',label:'霞鹜文楷'},
   {value:'zh-muyao',label:'沐瑶随心手写体'},
   {value:'zh-xwkai',label:'夏五珍楷'},
+  {value:'zh-huiming',label:'汇文明朝体'},
   {value:'en-system',label:'系统无衬线'},
   {value:'en-serif',label:'Serif'},
   {value:'en-playfair',label:'Playfair Display'},
@@ -945,12 +949,17 @@ const COVER_FONT_OPTIONS=[
 ];
 
 const TEMPLATES = {};
+/* 社交动作图标采用 Tabler Icons 的线性几何；原始 SVG 与 MIT 许可见 assets/icons/tabler-social-actions/。 */
 const SVG = {
   wave:(color='#f5811f',w=560)=>`<svg width="${w}" height="34" viewBox="0 0 560 34" fill="none" preserveAspectRatio="none" style="display:block"><path d="M6 20 Q 45 4 84 18 T 162 18 T 240 18 T 318 18 T 396 18 T 474 18 T 552 18" stroke="${color}" stroke-width="9" stroke-linecap="round"/></svg>`,
   arrowUp:(color='#f5811f')=>`<svg width="150" height="150" viewBox="0 0 150 150" fill="none"><path d="M20 120 C 40 118 66 96 72 60 C 74 46 70 40 62 44 C 55 48 58 62 74 58 C 96 54 112 40 124 22" stroke="${color}" stroke-width="10" stroke-linecap="round"/><path d="M124 22 L 104 30 M124 22 L 118 44" stroke="${color}" stroke-width="10" stroke-linecap="round"/></svg>`,
   eyes:(src)=>src?`<img src="${src}" style="width:120px;height:auto;display:block">`:`<svg width="120" height="70" viewBox="0 0 120 70" fill="none"><ellipse cx="34" cy="35" rx="30" ry="33" fill="#fff" stroke="#111" stroke-width="4"/><ellipse cx="86" cy="35" rx="30" ry="33" fill="#fff" stroke="#111" stroke-width="4"/><circle cx="30" cy="42" r="12" fill="#111"/><circle cx="82" cy="42" r="12" fill="#111"/></svg>`,
   smile:(color='#f5811f')=>`<svg width="200" height="130" viewBox="0 0 200 130" fill="none"><path d="M40 40 L46 78 M70 34 L74 74" stroke="${color}" stroke-width="9" stroke-linecap="round"/><path d="M28 88 C 60 128 140 128 176 78" stroke="${color}" stroke-width="9" stroke-linecap="round"/></svg>`,
   search:(c='#1f2b26')=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>`,
+  heartPlus:(c='#171717',s=30)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20l-7.5-7.428A5 5 0 1 1 12 6.006a5 5 0 1 1 7.96 6.053"/><path d="M16 19h6M19 16v6"/></svg>`,
+  headphones:(c='#171717',s=30)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3M15 15a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3M4 15v-3a8 8 0 0 1 16 0v3"/></svg>`,
+  socialSearch:(c='#171717',s=30)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg>`,
+  dots:(c='#171717',s=30)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>`,
   arrowCircle:(c='#1f2b26',s=54)=>`<svg width="${s}" height="${s}" viewBox="0 0 54 54" fill="none" stroke="${c}" stroke-width="3"><circle cx="27" cy="27" r="25"/><path d="M20 27h15m0 0l-6-6m6 6l-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
@@ -971,6 +980,33 @@ function safeColor(value,fallback='#000000'){
   if(/^hsla?\(\s*[\d.]+\s*,\s*[\d.]+%\s*,\s*[\d.]+%\s*(?:,\s*[\d.]+\s*)?\)$/.test(raw))return raw;
   if(/^[a-zA-Z]{1,20}$/.test(raw))return raw; /* 命名色如 red/transparent */
   return fallback;
+}
+
+function renderSocialInline(text,highlightColor){
+  const source=String(text??''),color=safeColor(highlightColor,'#FDEBD3');
+  const pattern=/==([^=\n]+?)==/g;
+  let html='',cursor=0,match;
+  while((match=pattern.exec(source))){
+    html+=escapeHtml(source.slice(cursor,match.index));
+    html+=`<span style="color:inherit;background:${color};padding:.02em .12em .06em;border-radius:.1em;box-decoration-break:clone;-webkit-box-decoration-break:clone">${escapeHtml(match[1])}</span>`;
+    cursor=match.index+match[0].length;
+  }
+  return html+escapeHtml(source.slice(cursor));
+}
+
+function renderSocialBody(value,highlightColor){
+  return String(value??'').replace(/\r/g,'').split('\n').map((line,index)=>{
+    if(!line.trim())return '<div style="height:.72em"></div>';
+    const heading=line.match(/^(#{1,2})\s+(.+)$/);
+    if(heading){
+      const level=heading[1].length;
+      const size=level===1?'1.52em':'1.25em';
+      const marginTop=index===0?'0':level===1?'.48em':'.36em';
+      const marginBottom=level===1?'.2em':'.14em';
+      return `<div style="font-family:'HuWenMingChaoTi','Noto Serif SC','Source Han Serif SC',Songti,serif;font-size:${size};font-weight:700;line-height:1.3;letter-spacing:.035em;margin:${marginTop} 0 ${marginBottom}">${renderSocialInline(heading[2],highlightColor)}</div>`;
+    }
+    return `<div style="min-height:1.76em">${renderSocialInline(line,highlightColor)}</div>`;
+  }).join('');
 }
 
 /* 图片来源安全校验：只允许 data:image/ 或 blob: 前缀，其余回退为空。 */
@@ -1146,7 +1182,66 @@ TEMPLATES.article = {
   typography:[{key:'author',label:'作者信息'},{key:'title',label:'主标题'},{key:'dek',label:'副标题'}],
 };
 
-/* ===================== 模板 5: Editorial Magazine 上图下文笔记风 ===================== */
+/* ===================== 模板 5: 社交风 ===================== */
+TEMPLATES.socialcard = {
+  name:'社交风',
+  data:{
+    avatar:null,
+    id:'xiao雪（AI版）',
+    kicker:'01 / CURIOSITY',
+    title:'保持好奇，持续生长',
+    body:'过去的经验会告诉我们什么方法有效，\n但环境变化得越来越快。\n\n## 真正有竞争力的人\n不是永远能给出正确答案的人，\n而是面对错误答案时，\n依然愿意==重新提问==的人。',
+    highlight:'#FDEBD3',
+    accent:'#2F6FE4',
+    ink:'#111111',
+    muted:'#777777',
+    bg:'#FFFFFF',
+  },
+  render(d){
+    const accent=safeColor(d.accent,'#2F6FE4'),ink=safeColor(d.ink,'#111111'),muted=safeColor(d.muted,'#777777'),bg=safeColor(d.bg,'#FFFFFF'),highlight=safeColor(d.highlight,'#FDEBD3');
+    const avatarSrc=safeImageSrc(d.avatar),avatarText=escapeHtml(Array.from(String(d.id||'图'))[0]||'图');
+    return `
+  <div style="width:900px;height:1200px;background:${bg};position:relative;font-family:var(--font-sohne);overflow:hidden;color:${ink}">
+    <div style="position:absolute;top:34px;left:52px;right:52px;height:100px;display:flex;align-items:center;gap:18px;z-index:3">
+      <div data-img="avatar" style="width:88px;height:88px;border-radius:50%;overflow:hidden;flex:0 0 88px;background:#ECECEA;display:flex;align-items:center;justify-content:center;color:${ink};font-family:'HuWenMingChaoTi','Noto Serif SC',serif;font-size:39px;box-shadow:inset 0 0 0 1.5px rgba(0,0,0,.08)">${avatarSrc?`<img src="${avatarSrc}" style="width:100%;height:100%;object-fit:cover;display:block">`:avatarText}</div>
+      <div data-edit="id" data-typo="id" style="width:278px;min-width:0;flex:0 1 278px;font-size:32px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.id)}</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex:0 0 auto">
+        <div title="关注" style="height:60px;padding:0 17px;border:2px solid ${ink};border-radius:17px;display:flex;align-items:center;gap:8px;font-size:22px;font-weight:700">${SVG.heartPlus(ink,32)}<span>关注</span></div>
+        <div title="听" style="height:60px;padding:0 14px;border:2px solid ${ink};border-radius:17px;display:flex;align-items:center;gap:6px;font-size:22px;font-weight:700">${SVG.headphones(ink,31)}<span>听</span></div>
+        <div title="搜索" style="width:60px;height:60px;border:2px solid ${ink};border-radius:17px;display:flex;align-items:center;justify-content:center">${SVG.socialSearch(ink,32)}</div>
+        <div title="更多" style="width:52px;height:60px;display:flex;align-items:center;justify-content:center">${SVG.dots(ink,38)}</div>
+      </div>
+    </div>
+    <div style="position:absolute;top:156px;left:52px;right:52px;height:1px;background:${ink};opacity:.12"></div>
+    <div data-edit="kicker" data-typo="kicker" style="position:absolute;top:199px;left:52px;right:52px;font-size:22px;font-weight:800;letter-spacing:.14em;color:${accent};text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(d.kicker)}</div>
+    <div data-edit="title" data-typo="title" style="position:absolute;top:252px;left:52px;right:52px;font-family:'HuWenMingChaoTi','Noto Serif SC','Source Han Serif SC',Songti,serif;font-size:67px;font-weight:700;line-height:1.2;letter-spacing:.035em;white-space:pre-line">${escapeHtml(d.title)}</div>
+    <div data-edit="body" data-rich-edit="true" data-typo="body" style="position:absolute;top:395px;left:52px;right:52px;bottom:78px;font-size:31px;font-weight:400;line-height:1.76;letter-spacing:.025em;overflow:hidden">${renderSocialBody(d.body,highlight)}</div>
+    <div style="position:absolute;left:52px;right:52px;bottom:34px;display:flex;align-items:center;color:${muted};font-size:15px;letter-spacing:.08em">
+      <span>TUWEN CRAFT · SOCIAL NOTE</span>
+    </div>
+  </div>`;
+  },
+  fields:[
+    {key:'avatar',label:'头像',type:'image',hint:'建议上传 1:1 正方形头像；未上传时显示 ID 首字。'},
+    {key:'id',label:'ID / 昵称',type:'text'},
+    {key:'kicker',label:'栏目 / 期数',type:'text'},
+    {key:'title',label:'单行标题',type:'text',hint:'建议控制在 12 个汉字以内，默认使用汇文明朝体。'},
+    {key:'body',label:'正文摘要',type:'textarea',rows:12,format:'socialBody',hint:'选中文字后可设为一级标题、二级标题或高亮；标题默认使用汇文明朝体。'},
+    {key:'highlight',label:'高亮颜色',type:'color',swatches:['#FDEBD3','#FFD5E5','#BFE8FF','#CFE9C9']},
+    {key:'accent',label:'强调色',type:'color',swatches:['#2F6FE4','#D94C3D','#16805C','#8D5BC1']},
+    {key:'ink',label:'文字色',type:'color',swatches:['#111111','#202020','#1D2530']},
+    {key:'muted',label:'辅助文字色',type:'color',swatches:['#777777','#6B7280','#8A8178']},
+    {key:'bg',label:'背景色',type:'color',swatches:['#FFFFFF','#FFFEFA','#F7F3EA']},
+  ],
+  typography:[
+    {key:'id',label:'ID / 昵称'},
+    {key:'kicker',label:'栏目 / 期数'},
+    {key:'title',label:'单行标题'},
+    {key:'body',label:'正文摘要'},
+  ],
+};
+
+/* ===================== 模板 6: Editorial Magazine 上图下文笔记风 ===================== */
 TEMPLATES.editorial = {
   name:'Editorial Magazine 风',
   data:{ratio:'8:5', note:"Don't Give Yourself Away for Free\n不要因为“能给”，就把一切都免费交出去。\n\n真正的价值，不在于你分享了多少，而在于你是否尊重自己的边界。", ink:'#080808', bg:'#FFFFFF', imageBg:'#F3EEF0', img:null},
@@ -1492,6 +1587,7 @@ function setTemplateData(path,value){
 }
 function bindInlineEdit(){
   canvas.querySelectorAll('[data-edit]').forEach(el=>{
+    if(el.dataset.richEdit==='true')return;
     el.addEventListener('click',e=>{if(!canvas.classList.contains('show-hints'))return;e.stopPropagation();el.setAttribute('contenteditable','true');el.focus();document.execCommand&&document.getSelection().selectAllChildren(el);});
     el.addEventListener('blur',()=>{const path=el.getAttribute('data-edit');setTemplateData(path,el.innerText);el.removeAttribute('contenteditable');if(path.startsWith('sections.')||(currentKey==='swiss'&&path==='title'))renderCanvas();else saveCoverStateDebounced();syncInspector();});
     el.addEventListener('keydown',ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();el.blur();}});
@@ -1501,7 +1597,14 @@ function buildInspector(){
   const t=TEMPLATES[currentKey];inspTitle.textContent=t.name;inspFields.innerHTML='';
   t.fields.forEach(f=>{const wrap=document.createElement('div');wrap.className='field';
     if(f.type==='text'){wrap.innerHTML=`<label>${f.label}</label><input type="text" data-f="${f.key}" value="">`;}
-    else if(f.type==='textarea'){wrap.innerHTML=`<label>${f.label}</label><textarea data-f="${f.key}"${f.rows?` rows="${f.rows}"`:''}></textarea>${f.hint?`<div class="hint">${f.hint}</div>`:''}`;}
+    else if(f.type==='textarea'){
+      const formatToolbar=f.format==='socialBody'?`<div class="cover-format-toolbar" aria-label="正文摘要格式工具">
+        <button type="button" class="cover-format-button" data-cover-format="h1" data-cover-format-key="${f.key}">H1 一级标题</button>
+        <button type="button" class="cover-format-button" data-cover-format="h2" data-cover-format-key="${f.key}">H2 二级标题</button>
+        <button type="button" class="cover-format-button highlight" data-cover-format="highlight" data-cover-format-key="${f.key}">高亮</button>
+      </div>`:'';
+      wrap.innerHTML=`<label>${f.label}</label>${formatToolbar}<textarea data-f="${f.key}"${f.rows?` rows="${f.rows}"`:''}></textarea>${f.hint?`<div class="cover-format-help">${f.hint}</div>`:''}`;
+    }
     else if(f.type==='color'){const sw=(f.swatches||[]).map(c=>`<span class="swatch" data-sw="${f.key}" data-c="${c}" style="background:${c}"></span>`).join('');wrap.innerHTML=`<label>${f.label}</label><div class="row"><input type="color" data-f="${f.key}" value="${t.data[f.key]||'#000000'}"><input type="text" data-f="${f.key}" value="${t.data[f.key]||''}" style="flex:1"></div><div class="swatches">${sw}</div>`;}
     else if(f.type==='image'){wrap.innerHTML=`<label>${f.label}</label><label class="upload-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 0L8 7m4-4l4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>上传图片<input type="file" accept="image/*" data-img="${f.key}" hidden></label><div class="hint">${f.hint||'建议透明底 PNG。未上传时显示占位图。'}</div>`;}
     else if(f.type==='choice'){wrap.innerHTML=`<label>${f.label}</label><div class="choice-group">${(f.options||[]).map(option=>`<button class="choice-btn${t.data[f.key]===option.value?' active':''}" data-choice="${f.key}" data-value="${option.value}" type="button">${option.label}</button>`).join('')}</div>${f.hint?`<div class="hint">${f.hint}</div>`:''}`;}
@@ -1532,10 +1635,39 @@ function buildInspector(){
   }
   wireInspector();syncInspector();
 }
+function applyCoverTextFormat(button){
+  const key=button.dataset.coverFormatKey,format=button.dataset.coverFormat;
+  const textarea=inspFields.querySelector(`textarea[data-f="${key}"]`);if(!textarea)return;
+  const value=textarea.value,start=textarea.selectionStart??0,end=textarea.selectionEnd??start;
+  let replaceStart=start,replaceEnd=end,replacement='';
+  if(format==='h1'||format==='h2'){
+    replaceStart=value.lastIndexOf('\n',Math.max(0,start-1))+1;
+    const nextBreak=value.indexOf('\n',end);replaceEnd=nextBreak===-1?value.length:nextBreak;
+    const prefix=format==='h1'?'# ':'## ';
+    replacement=value.slice(replaceStart,replaceEnd).split('\n').map(line=>line.trim()?prefix+line.replace(/^#{1,2}\s+/,''):line).join('\n');
+  }else{
+    const selected=value.slice(start,end);
+    if(selected){
+      replacement=selected.split('\n').map(line=>line?`==${line}==`:line).join('\n');
+    }else{
+      replacement='==高亮文字==';
+    }
+  }
+  textarea.value=value.slice(0,replaceStart)+replacement+value.slice(replaceEnd);
+  TEMPLATES[currentKey].data[key]=textarea.value;
+  textarea.focus();
+  if(format==='highlight'&&start===end)textarea.setSelectionRange(replaceStart+2,replaceStart+replacement.length-2);
+  else textarea.setSelectionRange(replaceStart,replaceStart+replacement.length);
+  renderCanvas();saveCoverStateDebounced();
+}
 function wireInspector(){
   inspFields.querySelectorAll('input[data-f],textarea[data-f]').forEach(inp=>{
     inp.addEventListener('input',()=>{const k=inp.getAttribute('data-f');TEMPLATES[currentKey].data[k]=inp.value;if(k==='blue')updateSwissUnderlineColor(inp.value);if(k==='accent')updateHamsterWaveColor(inp.value);if(inp.type==='color'||inp.parentElement.classList.contains('row')){inspFields.querySelectorAll(`[data-f="${k}"]`).forEach(o=>{if(o!==inp)o.value=inp.value;});}
     if(inp.type==='text'||inp.tagName==='TEXTAREA'){renderCanvasDebounced();}else{renderCanvas();}});
+  });
+  inspFields.querySelectorAll('[data-cover-format]').forEach(button=>{
+    button.addEventListener('mousedown',event=>event.preventDefault());
+    button.addEventListener('click',()=>applyCoverTextFormat(button));
   });
   inspFields.querySelectorAll('.swatch').forEach(s=>{s.addEventListener('click',()=>{const k=s.getAttribute('data-sw'),c=s.getAttribute('data-c');TEMPLATES[currentKey].data[k]=c;if(k==='blue')updateSwissUnderlineColor(c);if(k==='accent')updateHamsterWaveColor(c);inspFields.querySelectorAll(`[data-f="${k}"]`).forEach(o=>o.value=c);renderCanvas();});});
   inspFields.querySelectorAll('[data-choice]').forEach(button=>button.addEventListener('click',()=>{
@@ -1585,6 +1717,7 @@ const TEMPLATE_PREVIEWS={
   hamster:'assets/template-previews/hamster.png',
   swiss:'assets/template-previews/swiss.png',
   article:'assets/template-previews/article.png',
+  socialcard:'assets/template-previews/socialcard.png',
   editorial:'assets/template-previews/editorial.png',
   fieldguide:'assets/template-previews/fieldguide.png',
   notebook:'assets/template-previews/notebook.png'

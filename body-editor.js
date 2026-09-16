@@ -1,5 +1,5 @@
 // body-editor.js — 图文工坊正文编辑（卡片模式）
-// 从 write-then-publish-main 的卡片模式移植并简化：移除头像、昵称、长文和代码块。
+// 从 write-then-publish-main 的卡片模式移植并简化，支持简洁正文与社交风两种卡片风格。
 
 (function () {
   'use strict';
@@ -19,6 +19,9 @@
     'zh-kai': '"Kaiti SC", KaiTi, STKaiti, serif',
     'zh-hei': 'STHeiti, "Heiti SC", "Microsoft YaHei", sans-serif',
     'zh-lxgw': '"LXGW WenKai", "Kaiti SC", KaiTi, serif',
+    'zh-muyao': '"MuYao SuiXinShouXieTi", "Ma Shan Zheng", cursive',
+    'zh-xwkai': '"XiaWuZhenKai", "Noto Sans SC", sans-serif',
+    'zh-huiming': '"HuWenMingChaoTi", "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif',
     'en-system': '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
     'en-serif': 'Georgia, "Times New Roman", Times, serif',
     'en-rounded': '"Arial Rounded MT Bold", "Avenir Next", Arial, sans-serif',
@@ -36,9 +39,20 @@
 - *斜体文字*
 - {{color:#2563eb|局部文字变色}}
 - {{bg:#fff3a3|局部文字高亮}}
-- > 引用块
-- 标题分级
-- Markdown 表格
+- 引用块、表格、标题分级
+- 无序列表与有序列表（支持嵌套）
+
+## 无序列表
+
+- 苹果
+- 香蕉
+  - 子项一
+  - 子项二
+
+## 有序列表
+
+1. 第一项
+2. 第二项
 
 输入内容会自动分页，每张卡片尺寸固定为 864×1152 像素。`;
 
@@ -51,6 +65,10 @@
       lineHeight: DEFAULT_CARD_LINE_HEIGHT,
       zhFont: 'zh-system',
       enFont: 'en-system',
+      cardStyle: 'classic',
+      socialProfileName: 'xiao雪（AI版）',
+      socialProfileFontSize: 32,
+      socialAvatar: '',
       images: {},
       inlineColor: '#2563eb',
       inlineBgColor: '#fff3a3',
@@ -86,6 +104,10 @@
 
   function normalizeHexColor(value, fallback) {
     return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? String(value) : fallback;
+  }
+
+  function normalizeDataImage(value) {
+    return /^data:image\/[a-z0-9.+-]+;base64,/i.test(String(value || '')) ? String(value) : '';
   }
 
   function normalizeStoredImages(value) {
@@ -146,6 +168,12 @@
       enFont: typeof value.enFont === 'string' && value.enFont.startsWith('en-') && FONT_STACKS[value.enFont]
         ? value.enFont
         : defaults.enFont,
+      cardStyle: value.cardStyle === 'social' ? 'social' : 'classic',
+      socialProfileName: typeof value.socialProfileName === 'string'
+        ? (value.socialProfileName.trim() === '悦然小悟' ? defaults.socialProfileName : value.socialProfileName.trim().slice(0, 24) || defaults.socialProfileName)
+        : defaults.socialProfileName,
+      socialProfileFontSize: clamp(Number(value.socialProfileFontSize) || defaults.socialProfileFontSize, 18, 36),
+      socialAvatar: normalizeDataImage(value.socialAvatar),
       images: normalizeStoredImages(value.images),
       inlineColor: normalizeHexColor(value.inlineColor, defaults.inlineColor),
       inlineBgColor: normalizeHexColor(value.inlineBgColor, defaults.inlineBgColor),
@@ -316,6 +344,75 @@
     };
   }
 
+  // 根据缩进计算列表层级：每 2 个空格（或 1 个制表符算 4 空格）升一级
+  function listLevelFromIndent(leading) {
+    const spaces = leading.replace(/\t/g, '    ').length;
+    return Math.max(0, Math.floor(spaces / 2));
+  }
+
+  const LIST_ITEM_RE = /^([-*+]|\d+[.)])\s+(.+)$/;
+
+  function listBulletText(item) {
+    if (item.kind === 'ol') return `${item.number}.`;
+    if (item.level === 0) return '•';
+    if (item.level === 1) return '○';
+    if (item.level === 2) return '▪';
+    return '-';
+  }
+
+  // 从 startIndex 开始聚合连续列表项为一个 list 块，支持缩进嵌套与有序编号
+  function readListBlock(lines, lineOffsets, startIndex) {
+    const baseLevel = listLevelFromIndent(lines[startIndex].match(/^\s*/)[0]);
+    const items = [];
+    const olCounters = {};
+    let index = startIndex;
+
+    while (index < lines.length) {
+      const line = lines[index];
+      const leading = line.match(/^\s*/)[0].length;
+      const value = line.trim();
+      const match = value.match(LIST_ITEM_RE);
+      if (!match) break;
+
+      let level = listLevelFromIndent(line.slice(0, leading)) - baseLevel;
+      if (level < 0) level = 0;
+      if (level > 4) level = 4;
+
+      const isOrdered = /^\d/.test(match[1]);
+      // 再次进入较浅层级时清空该层及更深的计数，保证有序列表重新编号
+      Object.keys(olCounters).forEach((l) => {
+        if (Number(l) >= level) delete olCounters[l];
+      });
+      let number = 0;
+      if (isOrdered) {
+        olCounters[level] = (olCounters[level] || 0) + 1;
+        number = olCounters[level];
+      }
+
+      const contentIndent = leading + match[1].length + 1;
+      items.push({
+        kind: isOrdered ? 'ol' : 'ul',
+        level,
+        number,
+        tokens: parseInline(match[2].trim(), lineOffsets[index] + contentIndent),
+        sourceStart: lineOffsets[index],
+        sourceEnd: lineOffsets[index] + line.length,
+      });
+      index += 1;
+    }
+
+    if (!items.length) return null;
+    return {
+      block: {
+        type: 'list',
+        items,
+        sourceStart: lineOffsets[startIndex],
+        sourceEnd: lineOffsets[index - 1] + lines[index - 1].length,
+      },
+      endIndex: index - 1,
+    };
+  }
+
   function parseBlocks(content) {
     const normalized = content.replace(/\r\n/g, '\n');
     const lines = normalized.split('\n');
@@ -385,9 +482,11 @@
             sourceStart: lineOffsets[index],
             sourceEnd: lineOffsets[index] + line.length,
           });
-        } else if (/^([-*+]\s+|\d+[.)]\s+)/.test(trimmed)) {
-          const text = trimmed.replace(/^([-*+]\s+|\d+[.)]\s+)/, '• ');
-          appendParagraphLine(parseInline(text, trimmedStart), index, line);
+        } else if (/^([-*+]|\d+[.)])\s+/.test(trimmed)) {
+          const list = readListBlock(lines, lineOffsets, index);
+          flushParagraph();
+          blocks.push(list.block);
+          index = list.endIndex;
         } else if (/^([-*_])(?:\s*\1){2,}\s*$/.test(trimmed)) {
           flushParagraph();
           blocks.push({ type: 'spacer', sourceStart: lineOffsets[index], sourceEnd: lineOffsets[index] + line.length });
@@ -404,6 +503,9 @@
 
   // ===== 字体与测量 =====
   function fontFamilyForText(text, settings) {
+    if (settings.fontFamily) {
+      return `${settings.fontFamily}, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"`;
+    }
     const zhFont = FONT_STACKS[settings.zhFont] || FONT_STACKS['zh-system'];
     const enFont = FONT_STACKS[settings.enFont] || FONT_STACKS['en-system'];
     const emojiFont = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji"';
@@ -571,6 +673,19 @@
     const baseSize = settings.fontSize;
     const fontSettings = { zhFont: settings.zhFont, enFont: settings.enFont };
     if (type === 'h1') {
+      if (settings.cardStyle === 'social') {
+        return {
+          ...fontSettings,
+          fontFamily: FONT_STACKS['zh-huiming'],
+          size: Math.round(baseSize * 1.46),
+          lineHeight: 1.28,
+          weight: 700,
+          italic: false,
+          marginTop: 18,
+          marginBottom: 14,
+          color: settings.textColor,
+        };
+      }
       return { ...fontSettings, size: Math.round(baseSize * 1.36), lineHeight: 1.45, weight: 650, italic: false, marginTop: 22, marginBottom: 10, color: settings.textColor };
     }
     if (type === 'h2') {
@@ -625,7 +740,10 @@
   }
 
   // ===== 分页排版 =====
-  function contentBounds() {
+  function contentBounds(settings) {
+    if (settings.cardStyle === 'social') {
+      return { left: 52, right: CANVAS_WIDTH - 52, top: 184, bottom: CANVAS_HEIGHT - 70 };
+    }
     return { left: CARD_SIDE_PADDING, right: CANVAS_WIDTH - CARD_SIDE_PADDING, top: CARD_SIDE_PADDING, bottom: CANVAS_HEIGHT - CARD_SIDE_PADDING };
   }
 
@@ -642,7 +760,7 @@
     const contentWidth = page.bounds.right - page.bounds.left;
 
     function createPage() {
-      return { items: [], bounds: contentBounds() };
+      return { items: [], bounds: contentBounds(settings) };
     }
 
     function finishPage() {
@@ -740,6 +858,44 @@
         continue;
       }
 
+      if (block.type === 'list') {
+        const style = styleForBlock('list', settings);
+        const lineHeight = Math.ceil(style.size * style.lineHeight);
+        block.items.forEach((item, itemIndex) => {
+          const bulletIndent = item.level * Math.round(style.size * 1.05);
+          const bulletColumn = Math.round(style.size * 1.15);
+          const textWidth = Math.max(20, contentWidth - bulletIndent - bulletColumn);
+          const lines = wrapTokens(ctx, item.tokens, style, textWidth);
+          const bullet = listBulletText(item);
+          let first = true;
+          for (const line of lines) {
+            let topMargin = 0;
+            if (first && hasContent && previousBlockType !== 'spacer') {
+              topMargin = itemIndex === 0 ? style.marginTop : Math.round(style.size * 0.45);
+            }
+            ensureSpace(lineHeight, topMargin);
+            page.items.push({
+              type: 'list',
+              line,
+              style,
+              x: page.bounds.left + bulletIndent + bulletColumn,
+              y,
+              lineHeight,
+              bullet: first ? bullet : null,
+              bulletX: page.bounds.left + bulletIndent,
+            });
+            y += lineHeight;
+            first = false;
+            hasContent = true;
+          }
+        });
+        if (block.items.length) {
+          y += style.marginBottom;
+          previousBlockType = 'list';
+        }
+        continue;
+      }
+
       const style = styleForBlock(block.type, settings);
       const lineHeight = Math.ceil(style.size * style.lineHeight);
       const textWidth = style.quote ? contentWidth - 28 : contentWidth;
@@ -812,6 +968,20 @@
       ctx.fillText(token.text, cursor, baseline);
       cursor += width + tokenLetterSpacing(token, style);
     }
+  }
+
+  // 列表行：先画项目符号（悬挂缩进处），再画换行文本
+  function drawListItem(ctx, item) {
+    if (item.bullet) {
+      drawTextLine(ctx, {
+        style: item.style,
+        line: [{ text: item.bullet, bold: true }],
+        x: item.bulletX,
+        y: item.y,
+        lineHeight: item.lineHeight,
+      });
+    }
+    drawTextLine(ctx, item);
   }
 
   function measureTextLine(ctx, line, style) {
@@ -904,7 +1074,117 @@
     };
   }
 
-  function renderPage(page, index, total) {
+  // 与封面共用同一组 Tabler Icons 路径；许可见 assets/icons/tabler-social-actions/。
+  const SOCIAL_ICON_PATHS = {
+    heartPlus: [
+      'M12 20l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.96 6.053',
+      'M16 19h6',
+      'M19 16v6',
+    ],
+    headphones: [
+      'M4 15a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2l0 -3',
+      'M15 15a2 2 0 0 1 2 -2h1a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-1a2 2 0 0 1 -2 -2l0 -3',
+      'M4 15v-3a8 8 0 0 1 16 0v3',
+    ],
+    search: [
+      'M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0',
+      'M21 21l-6 -6',
+    ],
+    dots: [
+      'M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0',
+      'M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0',
+      'M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0',
+    ],
+  };
+
+  function drawSocialIcon(ctx, name, x, y, size, color) {
+    const paths = SOCIAL_ICON_PATHS[name] || [];
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(size / 24, size / 24);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = 'transparent';
+    ctx.lineWidth = 1.9;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    paths.forEach((pathData) => ctx.stroke(new Path2D(pathData)));
+    ctx.restore();
+  }
+
+  function drawSocialHeader(ctx, settings) {
+    const ink = '#111111';
+    const avatarX = 52;
+    const avatarY = 27;
+    const avatarSize = 84;
+
+    ctx.save();
+    roundedRect(ctx, avatarX, avatarY, avatarSize, avatarSize, avatarSize / 2);
+    ctx.clip();
+    if (settings.socialAvatarImage) {
+      drawCoverImage(ctx, settings.socialAvatarImage, fullCropRect(settings.socialAvatarImage), avatarX, avatarY, avatarSize, avatarSize);
+    } else {
+      ctx.fillStyle = '#ececea';
+      ctx.fillRect(avatarX, avatarY, avatarSize, avatarSize);
+      const initial = Array.from(settings.socialProfileName || '图')[0] || '图';
+      ctx.fillStyle = ink;
+      ctx.font = `700 37px ${FONT_STACKS['zh-huiming']}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(initial, avatarX + avatarSize / 2, avatarY + avatarSize / 2 + 1);
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = ink;
+    const profileFontSize = clamp(Number(settings.socialProfileFontSize) || 32, 18, 36);
+    ctx.font = `650 ${profileFontSize}px ${FONT_STACKS['zh-system']}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    const profileName = String(settings.socialProfileName || 'xiao雪（AI版）');
+    const profileChars = Array.from(profileName);
+    let clippedName = profileChars.join('');
+    while (profileChars.length > 1 && ctx.measureText(clippedName).width > 270) {
+      profileChars.pop();
+      clippedName = `${profileChars.join('')}…`;
+    }
+    ctx.fillText(clippedName, 152, 80);
+
+    const drawButton = (x, width) => {
+      ctx.strokeStyle = ink;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = 1.8;
+      roundedRect(ctx, x, 39, width, 58, 16);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    };
+
+    drawButton(444, 132);
+    drawSocialIcon(ctx, 'heartPlus', 454, 52, 31, ink);
+    ctx.fillStyle = ink;
+    ctx.font = `650 21px ${FONT_STACKS['zh-system']}`;
+    ctx.fillText('关注', 505, 77);
+
+    drawButton(586, 86);
+    drawSocialIcon(ctx, 'headphones', 593, 52, 31, ink);
+    ctx.font = `650 21px ${FONT_STACKS['zh-system']}`;
+    ctx.fillText('听', 633, 77);
+
+    drawButton(682, 58);
+    drawSocialIcon(ctx, 'search', 696, 52, 31, ink);
+    drawSocialIcon(ctx, 'dots', 758, 48, 38, ink);
+
+    ctx.globalAlpha = 0.13;
+    ctx.fillRect(52, 144, CANVAS_WIDTH - 104, 1);
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = ink;
+    ctx.globalAlpha = 0.55;
+    ctx.font = `500 14px ${FONT_STACKS['en-system']}`;
+    ctx.fillText('TUWEN CRAFT · SOCIAL NOTE', 52, CANVAS_HEIGHT - 30);
+    ctx.restore();
+  }
+
+  function renderPage(page, index) {
     const canvas = document.createElement('canvas');
     canvas.width = CANVAS_WIDTH;
     canvas.height = CANVAS_HEIGHT;
@@ -925,10 +1205,14 @@
       drawCoverImage(ctx, bg.image, bg.sourceRect, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
       ctx.restore();
     }
+    if (page.settings.cardStyle === 'social') {
+      drawSocialHeader(ctx, page.settings);
+    }
     for (const item of page.items) {
       if (item.type === 'text') drawTextLine(ctx, item);
       else if (item.type === 'image') drawImageBlock(ctx, item);
       else if (item.type === 'table-row') drawTableRow(ctx, item);
+      else if (item.type === 'list') drawListItem(ctx, item);
     }
   }
 
@@ -1229,6 +1513,10 @@
         lineHeight: this.state.lineHeight,
         zhFont: this.state.zhFont,
         enFont: this.state.enFont,
+        cardStyle: this.state.cardStyle,
+        socialProfileName: this.state.socialProfileName,
+        socialProfileFontSize: this.state.socialProfileFontSize,
+        socialAvatar: includeImages ? this.state.socialAvatar : '',
         images: referencedImages,
         inlineColor: this.state.inlineColor,
         inlineBgColor: this.state.inlineBgColor,
@@ -1267,6 +1555,10 @@
         lineHeight: clamp(this.state.lineHeight, 1, 2.4),
         zhFont: this.state.zhFont,
         enFont: this.state.enFont,
+        cardStyle: this.state.cardStyle,
+        socialProfileName: this.state.socialProfileName,
+        socialProfileFontSize: clamp(this.state.socialProfileFontSize, 18, 36),
+        socialAvatar: this.state.socialAvatar,
         images: this.state.images,
       };
     }
@@ -1281,6 +1573,12 @@
           this.imageCache.set(entry.src, await loadImage(entry.src));
         } catch (e) { /* ignore broken image */ }
       }));
+      if (settings.socialAvatar && !this.imageCache.has(settings.socialAvatar)) {
+        try {
+          this.imageCache.set(settings.socialAvatar, await loadImage(settings.socialAvatar));
+        } catch (e) { /* ignore broken avatar */ }
+      }
+      settings.socialAvatarImage = settings.socialAvatar ? this.imageCache.get(settings.socialAvatar) || null : null;
       if (myToken !== this.renderToken) return; // 过期,放弃渲染
       const pages = buildPages(settings, this.imageCache);
       const pageBackgrounds = this.state.pageBackgrounds || {};
@@ -1299,7 +1597,7 @@
         }
         page.settings = settings;
       });
-      this.canvases = pages.map((page, index) => renderPage(page, index, pages.length));
+      this.canvases = pages.map((page, index) => renderPage(page, index));
       if (!Number.isInteger(this.selectedExportIndex) || this.selectedExportIndex < 0 || this.selectedExportIndex >= this.canvases.length) {
         this.selectedExportIndex = null;
       }
@@ -1444,6 +1742,7 @@
         { label: '加粗', format: 'bold' },
         { label: '斜体', format: 'italic' },
         { label: '引用', format: 'quote' },
+        { label: '列表', format: 'list' },
         { label: '表格', format: 'table' },
         { label: '图片', format: 'image' },
       ];
@@ -1531,7 +1830,7 @@
 
       this.toolStatus = document.createElement('div');
       this.toolStatus.className = 'body-tool-status';
-      this.toolStatus.textContent = '支持 Markdown 表格、局部文字变色与背景高亮';
+      this.toolStatus.textContent = '支持 Markdown 表格、列表、局部文字变色与背景高亮';
       toolbar.appendChild(this.toolStatus);
       toolbarField.appendChild(toolbar);
       this.container.insertBefore(toolbarField, textField);
@@ -1578,15 +1877,93 @@
         return labelEl;
       };
 
+      const createTextInput = (label, key, maxLength = 24) => {
+        const labelEl = document.createElement('label');
+        labelEl.textContent = label;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = this.state[key];
+        input.maxLength = maxLength;
+        input.addEventListener('input', () => {
+          this.state[key] = input.value;
+          this.render();
+        });
+        labelEl.appendChild(input);
+        return labelEl;
+      };
+
+      const styleLabel = document.createElement('label');
+      styleLabel.textContent = '卡片风格';
+      const styleSelect = document.createElement('select');
+      styleSelect.innerHTML = '<option value="classic">简洁正文</option><option value="social">社交风</option>';
+      styleSelect.value = this.state.cardStyle;
+      styleLabel.appendChild(styleSelect);
+      settingsGrid.appendChild(styleLabel);
+
       settingsGrid.appendChild(createNumberInput('字号', 'fontSize', 24, 40, 1));
       settingsGrid.appendChild(createNumberInput('行距', 'lineHeight', 1, 2.4, 0.05));
       settingsGrid.appendChild(createColorInput('默认文字色', 'textColor'));
       settingsGrid.appendChild(createColorInput('卡片背景色', 'bgColor'));
 
+      const socialNameLabel = createTextInput('ID / 昵称', 'socialProfileName', 24);
+      socialNameLabel.dataset.socialOnly = 'true';
+      settingsGrid.appendChild(socialNameLabel);
+
+      const socialNameSizeLabel = createNumberInput('昵称字号', 'socialProfileFontSize', 18, 36, 1);
+      socialNameSizeLabel.dataset.socialOnly = 'true';
+      settingsGrid.appendChild(socialNameSizeLabel);
+
+      const socialAvatarLabel = document.createElement('label');
+      socialAvatarLabel.textContent = '头像';
+      socialAvatarLabel.dataset.socialOnly = 'true';
+      const socialAvatarActions = document.createElement('span');
+      socialAvatarActions.style.cssText = 'display:flex;align-items:center;gap:6px';
+      const socialAvatarInput = document.createElement('input');
+      socialAvatarInput.type = 'file';
+      socialAvatarInput.accept = 'image/*';
+      socialAvatarInput.style.width = '106px';
+      socialAvatarInput.addEventListener('change', async () => {
+        const file = socialAvatarInput.files?.[0];
+        if (!file) return;
+        try {
+          this.state.socialAvatar = await readFileAsDataURL(file);
+          this.render();
+        } catch (_) {
+          this.setToolStatus('头像读取失败，请换一张图片', 'error');
+        }
+      });
+      const clearSocialAvatar = document.createElement('button');
+      clearSocialAvatar.type = 'button';
+      clearSocialAvatar.className = 'body-tool-button';
+      clearSocialAvatar.textContent = '清除';
+      clearSocialAvatar.style.padding = '5px 7px';
+      clearSocialAvatar.addEventListener('click', () => {
+        this.state.socialAvatar = '';
+        socialAvatarInput.value = '';
+        this.render();
+      });
+      socialAvatarActions.appendChild(socialAvatarInput);
+      socialAvatarActions.appendChild(clearSocialAvatar);
+      socialAvatarLabel.appendChild(socialAvatarActions);
+      settingsGrid.appendChild(socialAvatarLabel);
+
+      const syncSocialControls = () => {
+        const visible = this.state.cardStyle === 'social';
+        settingsGrid.querySelectorAll('[data-social-only]').forEach((element) => {
+          element.style.display = visible ? '' : 'none';
+        });
+      };
+      styleSelect.addEventListener('change', () => {
+        this.state.cardStyle = styleSelect.value;
+        syncSocialControls();
+        this.render();
+      });
+      syncSocialControls();
+
       const zhFontLabel = document.createElement('label');
       zhFontLabel.textContent = '中文字体';
       const zhSelect = document.createElement('select');
-      zhSelect.innerHTML = '<option value="zh-system">苹方/系统黑体</option><option value="zh-song">宋体</option><option value="zh-kai">楷体</option><option value="zh-hei">黑体</option><option value="zh-lxgw">霞鹜文楷</option>';
+      zhSelect.innerHTML = '<option value="zh-system">苹方/系统黑体</option><option value="zh-song">宋体</option><option value="zh-kai">楷体</option><option value="zh-hei">黑体</option><option value="zh-lxgw">霞鹜文楷</option><option value="zh-muyao">沐瑶随心手写体</option><option value="zh-xwkai">夏五珍楷</option><option value="zh-huiming">汇文明朝体</option>';
       zhSelect.value = this.state.zhFont;
       zhSelect.addEventListener('change', () => { this.state.zhFont = zhSelect.value; this.render(); });
       zhFontLabel.appendChild(zhSelect);
@@ -1803,6 +2180,20 @@
         ta.value = `${value.slice(0, lineStart)}${prefix}${value.slice(lineStart)}`;
         ta.focus();
         ta.setSelectionRange(start + prefix.length, end + prefix.length);
+        this.state.content = ta.value;
+        this.rememberSelection();
+        this.commitTextHistory();
+        this.render();
+        return;
+      }
+      if (format === 'list') {
+        const input = value.slice(start, end) || '列表项';
+        const items = input.split('\n').map((l) => (l.trim() ? `- ${l}` : l)).join('\n');
+        const before = start > 0 && value[start - 1] !== '\n' ? '\n' : '';
+        const after = end < value.length && value[end] !== '\n' ? '\n' : '';
+        const replacement = `${before}${items}${after}`;
+        ta.setRangeText(replacement, start, end, 'end');
+        ta.focus();
         this.state.content = ta.value;
         this.rememberSelection();
         this.commitTextHistory();

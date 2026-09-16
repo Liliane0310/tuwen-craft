@@ -7,6 +7,8 @@
   // ===== 常量 =====
   const CANVAS_WIDTH = 864;
   const CANVAS_HEIGHT = 1152;
+  // 导出清晰度倍率：封面卡片物理像素 = 逻辑尺寸 × EXPORT_SCALE，导出时用
+  const EXPORT_SCALE = 3;
   const CARD_SIDE_PADDING = 42;
   const DEFAULT_CARD_FONT_SIZE = 34;
   const DEFAULT_CARD_LINE_HEIGHT = 1.85;
@@ -19,6 +21,9 @@
     'zh-kai': '"Kaiti SC", KaiTi, STKaiti, serif',
     'zh-hei': 'STHeiti, "Heiti SC", "Microsoft YaHei", sans-serif',
     'zh-lxgw': '"LXGW WenKai", "Kaiti SC", KaiTi, serif',
+    'zh-muyao': '"MuYao SuiXinShouXieTi", "Ma Shan Zheng", cursive',
+    'zh-xwkai': '"XiaWuZhenKai", "Noto Sans SC", sans-serif',
+    'zh-huiming': '"HuWenMingChaoTi", "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif',
     'en-system': '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
     'en-serif': 'Georgia, "Times New Roman", Times, serif',
     'en-rounded': '"Arial Rounded MT Bold", "Avenir Next", Arial, sans-serif',
@@ -908,6 +913,18 @@
     return canvas;
   }
 
+  // 高清导出：以 EXPORT_SCALE 倍率渲染整页，逻辑坐标仍按 CANVAS 尺寸，物理像素更高
+  function renderHighResPage(page, index, scale = EXPORT_SCALE) {
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(CANVAS_WIDTH * scale);
+    canvas.height = Math.round(CANVAS_HEIGHT * scale);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    ctx.imageSmoothingQuality = 'high';
+    drawPageToContext(ctx, page);
+    return canvas;
+  }
+
   function drawPageToContext(ctx, page) {
     ctx.fillStyle = page.settings.bgColor;
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -1292,6 +1309,7 @@
         page.settings = settings;
       });
       this.canvases = pages.map((page, index) => renderPage(page, index, pages.length));
+      this._exportPages = pages;
       if (!Number.isInteger(this.selectedExportIndex) || this.selectedExportIndex < 0 || this.selectedExportIndex >= this.canvases.length) {
         this.selectedExportIndex = null;
       }
@@ -1549,7 +1567,7 @@
       const zhFontLabel = document.createElement('label');
       zhFontLabel.textContent = '中文字体';
       const zhSelect = document.createElement('select');
-      zhSelect.innerHTML = '<option value="zh-system">苹方/系统黑体</option><option value="zh-song">宋体</option><option value="zh-kai">楷体</option><option value="zh-hei">黑体</option><option value="zh-lxgw">霞鹜文楷</option>';
+      zhSelect.innerHTML = '<option value="zh-system">苹方/系统黑体</option><option value="zh-song">宋体</option><option value="zh-kai">楷体</option><option value="zh-hei">黑体</option><option value="zh-lxgw">霞鹜文楷</option><option value="zh-muyao">沐瑶随心手写体</option><option value="zh-xwkai">夏五珍楷</option><option value="zh-huiming">汇文明朝体</option>';
       zhSelect.value = this.state.zhFont;
       zhSelect.addEventListener('change', () => { this.state.zhFont = zhSelect.value; this.render(); });
       zhFontLabel.appendChild(zhSelect);
@@ -2271,7 +2289,10 @@
     async saveCanvas(index, stamp = Date.now()) {
       const cvs = this.canvases[index];
       if (!cvs) return false;
-      const dataUrl = cvs.toDataURL('image/png');
+      // 使用高清重渲染生成导出图，保证放大后清晰
+      const page = this._exportPages && this._exportPages[index];
+      const exportCvs = page ? renderHighResPage(page, index) : cvs;
+      const dataUrl = exportCvs.toDataURL('image/png');
       if (window.xhs?.miniTool?.saveImageToPhotosAlbum) {
         const { filePath } = await window.xhs.miniTool.writeTempFile({ data: dataUrl });
         await window.xhs.miniTool.saveImageToPhotosAlbum({ filePath });

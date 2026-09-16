@@ -1,45 +1,48 @@
-/* 本地字体定义 — 替代 Google Fonts CDN */
-@font-face {
-  font-family: 'Playfair Display';
-  font-style: italic;
-  font-weight: 700;
-  font-display: swap;
-  src: url('../fonts/PlayfairDisplay-Italic-700.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Playfair Display';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('../fonts/PlayfairDisplay-Bold.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Playfair Display';
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap;
-  src: url('../fonts/PlayfairDisplay-Black.woff2') format('woff2');
-}
+/* 本地字体定义 — 替代 Google Fonts CDN（本地优先，离线可用）
+   Playfair Display / Noto Sans SC 等通过 CDN 加载，见 index.html 顶部的 Google Fonts 链接。 */
 @font-face {
   font-family: 'MuYao SuiXinShouXieTi';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/MuYaoSuiXinShouXieTi.ttf') format('truetype');
+  src: url('../../fonts/MuYaoSuiXinShouXieTi.ttf') format('truetype');
 }
 @font-face {
   font-family: 'XiaWuZhenKai';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/XiaWuZhenKaiGB.ttf') format('truetype');
+  src: url('../../fonts/XiaWuZhenKaiGB.ttf') format('truetype');
 }
 @font-face {
   font-family: 'LXGW WenKai';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('../fonts/LXGWWenKai-Regular.ttf') format('truetype');
+  src: url('../../fonts/LXGWWenKai-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'HuWenMingChaoTi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../fonts/汇文明朝体.otf') format('opentype');
+}
+
+/* Lora — 开源衬线体（OFL 许可），Latin 子集，本地方可变字体文件 */
+@font-face {
+  font-family: 'Lora';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../../fonts/Lora-Variable.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Lora';
+  font-style: italic;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../../fonts/Lora-Italic-Variable.ttf') format('truetype');
 }
 
 /* Noto Sans SC / Noto Serif SC fallback — 使用系统字体栈替代 */
